@@ -8,19 +8,19 @@ import numpy as np
 from kedro.io import AbstractDataset
 from kedro.io.core import get_filepath_str, get_protocol_and_path
 class WaveDataSet(AbstractDataset[np.ndarray, np.ndarray]):
-    """``ImageDataset`` loads / save image data from a given filepath as `numpy` array using Pillow.
+    """``WaveDataSet`` loads / save wave data from a given filepath as `numpy` array using SciPy.
 
     Example:
     ::
 
-        >>> ImageDataset(filepath='/img/file/path.png')
+        >>> WaveDataSet(filepath='/wav/file/path.wav')
     """
 
     def __init__(self, filepath: str):
-        """Creates a new instance of ImageDataset to load / save image data for given filepath.
+        """Creates a new instance of WaveDataSet to load / save wave data for given filepath.
 
         Args:
-            filepath: The location of the image file to load / save data.
+            filepath: The location of the wave file to load / save data.
         """
         protocol, path = get_protocol_and_path(filepath)
         self._protocol = protocol
@@ -28,14 +28,15 @@ class WaveDataSet(AbstractDataset[np.ndarray, np.ndarray]):
         self._fs = fsspec.filesystem(self._protocol)
 
     def load(self) -> np.ndarray:
-        """Loads data from the image file.
+        """Loads data from the wave file.
 
         Returns:
-            Data from the image file as a numpy array
+            Data from the wave file as a numpy array
         """
         load_path = get_filepath_str(self._filepath, self._protocol)
         fs, y = sci_wav.read(load_path)
         return fs, y
+
     def save(self, data: np.ndarray, sample_rate: int) -> None:
         """Saves data to the wave file.
 
