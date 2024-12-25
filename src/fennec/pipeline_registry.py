@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from kedro.framework.project import find_pipelines
 from kedro.pipeline import Pipeline
+from .pipelines.mfcc import pipeline as audio_ingestion_pipeline
 
 
 def register_pipelines() -> dict[str, Pipeline]:
@@ -12,5 +13,8 @@ def register_pipelines() -> dict[str, Pipeline]:
         A mapping from pipeline names to ``Pipeline`` objects.
     """
     pipelines = find_pipelines()
-    pipelines["__default__"] = sum(pipelines.values())
-    return pipelines
+    #pipelines["__default__"] = sum(pipelines.values())
+    return {
+        "__default__": sum(pipelines.values()),
+        "audio_ingest": audio_ingestion_pipeline.create_pipeline(),
+    }

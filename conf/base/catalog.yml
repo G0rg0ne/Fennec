@@ -2,3 +2,15 @@
 #
 # Documentation for this file format can be found in "The Data Catalog"
 # Link: https://docs.kedro.org/en/stable/data/data_catalog.html
+
+input_audio:
+  type: partitions.PartitionedDataset
+  dataset: fennec.datasets.customwavedataset.WaveDataSet
+  path: data/01_raw/speaker_dataset
+  filename_suffix: ".wav"
+
+output_graphs:
+  type: partitions.PartitionedDataset
+  dataset: matplotlib.MatplotlibWriter
+  path: data/02_intermediate
+  filename_suffix: ".png"
