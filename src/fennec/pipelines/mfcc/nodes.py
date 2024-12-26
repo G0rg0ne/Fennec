@@ -11,12 +11,13 @@ import librosa.display as libdisplay
 
 def monitoring_signal(input):
     fig = None
-    audio_figs = {}
+    temporal_audio_figs = {}
+    librosa_audio_figs = {}
     for id, audio in input.items():
         fs, y = audio()
         y = 1.0 * y
         t = np.linspace(0, y.shape[0] / fs, y.shape[0])
-        audio_figs[id] = plot_audio_signal(t, y, fs)
+        temporal_audio_figs[id] = plot_audio_signal(t, y, fs)
         # set parameters
         n_fft = 512
         params = {
@@ -28,9 +29,9 @@ def monitoring_signal(input):
 
         # show spectrogram
         y_spec_lib, y_spec = get_spectrogram_of_signal(y, params, fs)
-        visualize_spectrogram(y_spec, params, "Implemented Spectrogram function")
-        audio_figs[id] = visualize_spectrogram(y_spec_lib, params, "Librosa Spectrogram function")
-    return audio_figs
+        #visualize_spectrogram(y_spec, params, "Implemented Spectrogram function")
+        librosa_audio_figs[id] = visualize_spectrogram(y_spec_lib, params, "Librosa Spectrogram function")
+    return temporal_audio_figs,librosa_audio_figs
 
 def visualize_spectrogram(y_spec: np.array, parameters: dict, title: str = ""):
     figure = plt.figure(figsize=(8, 6))

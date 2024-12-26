@@ -9,8 +9,14 @@ input_audio:
   path: data/01_raw/speaker_dataset
   filename_suffix: ".wav"
 
-output_graphs:
+temporal_audio_figures:
   type: partitions.PartitionedDataset
   dataset: matplotlib.MatplotlibWriter
-  path: data/02_intermediate
+  path: data/02_intermediate/temporal_audio_figures
+  filename_suffix: ".png"
+
+librosa_spectrum_figures:
+  type: partitions.PartitionedDataset
+  dataset: matplotlib.MatplotlibWriter
+  path: data/02_intermediate/librosa_spectrum_figures
   filename_suffix: ".png"

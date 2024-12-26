@@ -12,7 +12,10 @@ def create_pipeline(**kwargs) -> Pipeline:
         node(
             func=monitoring_signal,
             inputs="input_audio",
-            outputs="output_graphs",
+            outputs=[
+                "temporal_audio_figures",
+                "librosa_spectrum_figures",
+            ],
             name="direct_ingestion",
         )
     ])

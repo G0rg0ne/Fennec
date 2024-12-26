@@ -70,7 +70,6 @@ def stft(y: np.array, fs: float, n_fft: int, frame_size: float, frame_step: floa
 
     # framing
     frames = framing(y, fs, frame_size, frame_step)
-
     # window the frames with hamming window
     frames = hamming(frames)
 
