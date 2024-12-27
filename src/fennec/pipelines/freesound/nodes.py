@@ -5,6 +5,36 @@ generated using Kedro 0.19.10
 from .utils import stft, mel_filter, signal_power_to_db, discrete_cos_transformation, sin_liftering
 import numpy as np
 import librosa
+from pathlib import Path
+from typing import Any, Callable
+
+import lightning.pytorch as pl
+from .lightning_modules import WaveDataModule
+
+
+def create_datamodule(
+    dataset: str,
+    datamodule_params: dict[str, Any],
+) -> pl.LightningDataModule:
+    """Function to create a datamodule from pytorch lightning,
+        which contains implementation for creating dataloaders.
+        It's a appropriate way of data within training/evaluating
+        model with lightning system.
+
+    Args:
+        dataset: dataset containing paths into ground images, satmap image
+            and the position of ground images in the satmap plan.
+        datamodule_params (dict[str, Any]): all params used
+            for creating dataloaders (transformations, batch_size, num_workers...)
+
+    Returns: pl.LightningDataModule object
+    """
+
+    return WaveDataModule(
+        dataset,
+        **datamodule_params,
+    )
+
 
 def pre_processing(train_audio, eval_audio):
     for id, audio in train_audio.items():

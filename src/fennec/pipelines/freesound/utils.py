@@ -1,6 +1,5 @@
 import numpy as np
 
-
 def framing(signal: np.array, fs: float, frame_size: float, frame_step: float):
     """
     Frame input signal in frames with frame_size and frame_step defined in seconds.
