@@ -4,6 +4,8 @@ https://github.com/FilipTirnanic96/mfcc_extraction
 
 https://paperswithcode.com/task/audio-classification
 
+https://zenodo.org/records/4060432
+
 # fennec
 
 [![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)

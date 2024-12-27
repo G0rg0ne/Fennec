@@ -3,6 +3,8 @@
 # Documentation for this file format can be found in "The Data Catalog"
 # Link: https://docs.kedro.org/en/stable/data/data_catalog.html
 
+## mfcc method assessement
+
 input_audio:
   type: partitions.PartitionedDataset
   dataset: fennec.datasets.customwavedataset.WaveDataSet
@@ -20,3 +22,17 @@ librosa_spectrum_figures:
   dataset: matplotlib.MatplotlibWriter
   path: data/02_intermediate/librosa_spectrum_figures
   filename_suffix: ".png"
+
+## Training and Evaluation Datasets
+
+FSD50K_train_audio:
+  type: partitions.PartitionedDataset
+  dataset: fennec.datasets.customwavedataset.WaveDataSet
+  path: data/01_raw/FSD50K.dev_audio
+  filename_suffix: ".wav"
+FSD50K_eval_audio:
+  type: partitions.PartitionedDataset
+  dataset: fennec.datasets.customwavedataset.WaveDataSet
+  path: data/01_raw/FSD50K.eval_audio
+  filename_suffix: ".wav"
+
