@@ -5,26 +5,21 @@ generated using Kedro 0.19.10
 from kedro.pipeline import Pipeline, node, pipeline
 from .nodes import (
     pre_processing,
-    create_datamodule
 )
 
 def create_pipeline(**kwargs) -> Pipeline:
-    audio_pipeline = Pipeline(
-        [
-            node(
-                func=create_datamodule,
-                name="create_train_datamodule",
-                inputs=[
-                    "train_dataset",
-                    "params:train_datamodule",
-                ],
-                outputs="train_datamodule",
-                tags=[
-                    "ccvpe",
-                    "training",
-                    "train_datamodule_creatation",
-                ],
-            ),
-        ]
-    )
-    return audio_pipeline
+    return pipeline([
+        node(
+            func=pre_processing,
+            inputs=[
+                "FSD50K_train_audio",
+                "FSD50K_eval_audio",
+                "params:pre_processing_parameters",
+            ],
+            outputs=[
+                "processed_train_audio",
+                "processed_eval_audio",
+            ],
+            name="pre_processing_node",
+        )
+    ])

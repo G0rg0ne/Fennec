@@ -7,44 +7,21 @@ import numpy as np
 import librosa
 from pathlib import Path
 from typing import Any, Callable
-
-import lightning.pytorch as pl
-from .lightning_modules import WaveDataModule
-
-
-def create_datamodule(
-    dataset: str,
-    datamodule_params: dict[str, Any],
-) -> pl.LightningDataModule:
-    """Function to create a datamodule from pytorch lightning,
-        which contains implementation for creating dataloaders.
-        It's a appropriate way of data within training/evaluating
-        model with lightning system.
-
-    Args:
-        dataset: dataset containing paths into ground images, satmap image
-            and the position of ground images in the satmap plan.
-        datamodule_params (dict[str, Any]): all params used
-            for creating dataloaders (transformations, batch_size, num_workers...)
-
-    Returns: pl.LightningDataModule object
-    """
-
-    return WaveDataModule(
-        dataset,
-        **datamodule_params,
-    )
+import torch
+from .dataloader import AudioFeatureDataset
+from torch.utils.data import DataLoader
 
 
-def pre_processing(train_audio, eval_audio):
-    for id, audio in train_audio.items():
-        # preprocess audio
-        processed_audio = preprocess_raw_data(audio()[1], 10000, {'fs': 44100, 'n_fft': 512, 'frame_size': 0.025, 'frame_step': 0.01})
-     
+def pre_processing(train_audio, eval_audio, pre_processing_parameters):
+    train_dataset = AudioFeatureDataset(train_audio,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
+    eval_dataset = AudioFeatureDataset(eval_audio,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
+    train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
+    eval_loader = DataLoader(eval_dataset, batch_size=10, shuffle=False)
+
     return None, None
 
 
-def preprocess_raw_data(data: list, fix_length: int, mfcc_parameters: dict):
+def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
     """
     Preprocess audio data. Returns MFCC features of each audio sample.
 
@@ -55,15 +32,15 @@ def preprocess_raw_data(data: list, fix_length: int, mfcc_parameters: dict):
     """
 
     # pad data to fix length
-    data_set_fix_length = pad_sample(data, fix_length)
+    data_set_fix_length = pad_sample(data, pad_params)
     # extract MFCC for each sample
     mfcc_features = mfcc_extraction(data_set_fix_length, mfcc_parameters['fs'], mfcc_parameters['n_fft'],
-                                    mfcc_parameters['frame_size'], mfcc_parameters['frame_step'])
+                                    mfcc_parameters['frame_size'], mfcc_parameters['frame_step'], mfcc_parameters['n_mels'],mfcc_parameters['n_mfcc'])
 
     return mfcc_features
 
 
-def pad_sample(sample: tuple, fix_length: int):
+def pad_sample(sample: tuple,pad_params: dict):
     """
     Pad a single sample (frequency, audio) to a fixed length.
 
@@ -75,13 +52,12 @@ def pad_sample(sample: tuple, fix_length: int):
     
     # Ensure the audio part is a NumPy array for compatibility with librosa
     audio_array = np.array(audio)
-    
     # Pad the audio sample to the specified length
-    padded_audio = librosa.util.fix_length(audio_array, size=fix_length, axis=0, mode='wrap')
+    padded_audio = librosa.util.fix_length(audio_array, size=pad_params['fix_length'], axis=0, mode=pad_params['mode'])
     
     return  padded_audio
 
-def mfcc_extraction(data_set_fix_length: list, fs: float, n_fft: int, frame_size: float, frame_step: float):
+def mfcc_extraction(data_set_fix_length: list, fs: float, n_fft: int, frame_size: float, frame_step: float, n_mels: int, n_mfcc: int):
     """
     Extract MFCC features for each data sample.
 
@@ -92,10 +68,8 @@ def mfcc_extraction(data_set_fix_length: list, fs: float, n_fft: int, frame_size
     :param frame_step: Frame step in sec
     :return: MFCC features for each data sample
     """
-
     # Extract MFCC features for the single data sample
-    mfcc_features = extract_mfcc_feature(y=data_set_fix_length, fs=fs, n_fft=n_fft, frame_size=frame_size, frame_step=frame_step)
-    
+    mfcc_features = extract_mfcc_feature(y=data_set_fix_length, fs=fs, n_fft=n_fft, frame_size=frame_size, frame_step=frame_step,n_mels=n_mels,n_mfcc= n_mfcc)
     return mfcc_features
 
 def extract_mfcc_feature(y: np.array, fs: float, n_fft: int = 512, frame_size: float = 0.025, frame_step: float = 0.01,
