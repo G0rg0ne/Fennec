@@ -15,8 +15,9 @@ from torch.utils.data import DataLoader
 def pre_processing(train_audio, eval_audio, pre_processing_parameters):
     train_dataset = AudioFeatureDataset(train_audio,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
     eval_dataset = AudioFeatureDataset(eval_audio,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
-    train_loader = DataLoader(train_dataset, batch_size=10, shuffle=True)
-    eval_loader = DataLoader(eval_dataset, batch_size=10, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    eval_loader = DataLoader(eval_dataset, batch_size=32, shuffle=False)
+    import pdb; pdb.set_trace() 
 
     return None, None
 
