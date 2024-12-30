@@ -129,7 +129,9 @@ def training_pipeline(
             # Log metrics for the epoch
             avg_loss = epoch_loss / len(train_loader)
             mlflow.log_metric("avg_loss", avg_loss, step=epoch)
-            logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
+            logger.info(
+                f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}"
+            )
 
             # Evaluation Loop
             model.eval()
@@ -141,27 +143,29 @@ def training_pipeline(
                     # Transform class labels
                     data[1] = class_label_ecod.transform(data[1])
                     data[1] = torch.LongTensor(data[1])
-                    
+
                     # Move inputs and labels to the device
                     inputs, labels = data[0].to(device), data[1].to(device)
-                    
+
                     # Forward pass
                     outputs = model(inputs)
-                    
+
                     # Compute loss
                     loss = criterion(outputs, labels)
                     eval_loss += loss.item()
-                    
+
                     # Compute accuracy
                     _, predicted = torch.max(outputs, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
-            
+
             avg_eval_loss = eval_loss / len(eval_loader)
             accuracy = correct / total
             mlflow.log_metric("avg_eval_loss", avg_eval_loss, step=epoch)
             mlflow.log_metric("eval_accuracy", accuracy, step=epoch)
-            logger.info(f"Validation Loss: {avg_eval_loss:.4f}, Accuracy: {accuracy:.4f}")
+            logger.info(
+                f"Validation Loss: {avg_eval_loss:.4f}, Accuracy: {accuracy:.4f}"
+            )
 
         # Log the final model
         mlflow.pytorch.log_model(model, "model")
