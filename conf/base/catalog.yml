@@ -35,4 +35,14 @@ FSD50K_eval_audio:
   dataset: fennec.datasets.customwavedataset.WaveDataSet
   path: data/01_raw/FSD50K.eval_audio
   filename_suffix: ".wav"
-
+GT_train_labels:
+  type: pandas.CSVDataset
+  filepath: "data/01_raw/FSD50K.ground_truth/dev.csv"
+GT_eval_labels:
+  type: pandas.CSVDataset
+  filepath: "data/01_raw/FSD50K.ground_truth/eval.csv"
+GT_vocab:
+  type: pandas.CSVDataset
+  filepath: "data/01_raw/FSD50K.ground_truth/vocabulary.csv"
+  load_args:
+    header: null

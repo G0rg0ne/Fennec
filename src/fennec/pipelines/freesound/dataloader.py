@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 class AudioFeatureDataset(Dataset):
-    def __init__(self, data,pre_processing ,train=True,pre_processing_parameters=None):
+    def __init__(self, data,fname_to_labels,pre_processing ,train=True,pre_processing_parameters=None):
         """
         Initialize the dataset.
         :param processed_data: Dictionary with train and eval features.
@@ -9,7 +9,8 @@ class AudioFeatureDataset(Dataset):
         :param train: Boolean indicating whether to use train or eval features.
         """
         self.data = data
-        self.labels = list(data.keys())
+        self.fname_to_labels = fname_to_labels
+        self.fname = list(data.keys())
         self.audios = list(data.values())
         self.train = train
         self.pre_processing = pre_processing
@@ -19,9 +20,10 @@ class AudioFeatureDataset(Dataset):
         return len(self.audios)
 
     def __getitem__(self, idx):
-        label = self.labels[idx]
+        fname = self.fname[idx]
         audio = self.audios[idx]
-        fs, audio_data = audio() 
+        label = self.fname_to_labels[fname].split(',')[0]
+        fs, audio_data = audio()
         # Apply the preprocessing function if provided
         if self.pre_processing:
             audio_data = self.pre_processing(

@@ -8,3 +8,5 @@ matplotlib
 librosa
 kedro-datasets
 torch
+loguru
+mlflow

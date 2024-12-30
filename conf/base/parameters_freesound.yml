@@ -12,5 +12,5 @@ pre_processing_parameters:
     n_mels: 40
     n_mfcc: 13
   padding:
-    mode: "warp"
+    mode: "constant"
     fix_length : 15000

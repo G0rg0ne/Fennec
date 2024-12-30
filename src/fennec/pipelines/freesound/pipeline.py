@@ -14,11 +14,12 @@ def create_pipeline(**kwargs) -> Pipeline:
             inputs=[
                 "FSD50K_train_audio",
                 "FSD50K_eval_audio",
+                "GT_train_labels",
+                "GT_eval_labels",
+                "GT_vocab",
                 "params:pre_processing_parameters",
             ],
-            outputs=[
-                "processed_train_audio",
-                "processed_eval_audio",
+            outputs=["test_loader", "eval_loader"
             ],
             name="pre_processing_node",
         )

@@ -10,16 +10,54 @@ from typing import Any, Callable
 import torch
 from .dataloader import AudioFeatureDataset
 from torch.utils.data import DataLoader
+from sklearn.preprocessing import LabelEncoder
+from torch import nn
+from .model import AudioClassifier
+from loguru import logger
+import mlflow
 
 
-def pre_processing(train_audio, eval_audio, pre_processing_parameters):
-    train_dataset = AudioFeatureDataset(train_audio,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
-    eval_dataset = AudioFeatureDataset(eval_audio,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
+def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Device: {device}")
+    list_of_labels = vocab[1].tolist()
+    le = LabelEncoder()
+    class_label_ecod = le.fit(list_of_labels)
+
+    train_gt['fname'] = train_gt['fname'].astype(str)
+    train_gt_fname_to_labels = dict(zip(train_gt['fname'], train_gt['labels']))
+    eval_gt_fname_to_labels = dict(zip(eval_gt['fname'], eval_gt['labels']))
+
+    train_dataset = AudioFeatureDataset(train_audio,train_gt_fname_to_labels,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
+    eval_dataset = AudioFeatureDataset(eval_audio,eval_gt_fname_to_labels,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     eval_loader = DataLoader(eval_dataset, batch_size=32, shuffle=False)
-    import pdb; pdb.set_trace() 
 
-    return None, None
+    input_dim = 12          # Number of MFCC features
+    hidden_dim = 64         # Number of neurons in the hidden layer
+    num_classes = 200       # Number of target classes
+    learning_rate = 0.001   # Learning rate for the optimizer
+    model = AudioClassifier(input_dim, hidden_dim, num_classes)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    num_epochs = 10
+
+    for epoch in range(num_epochs):
+        for idx, data in enumerate(train_loader):
+            data[1] = class_label_ecod.transform(data[1])
+            data[1]=torch.LongTensor(data[1])
+            inputs, labels = data[0].to(device), data[1].to(device)
+            optimizer.zero_grad()
+            # Forward pass
+            outputs = model(inputs)
+            # Compute loss
+            loss = criterion(outputs, labels)
+            # Backward pass and optimization
+            loss.backward()
+            optimizer.step()
+            # Log the loss for MLflow and Loguru
+        logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
+    return train_loader, eval_loader
 
 
 def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):

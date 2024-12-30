@@ -115,7 +115,7 @@ def mel_filter(frames, f_min, f_max, n_mels, fs):
         right_f = int(fft_bank_bin[i + 1])
 
         for k in np.arange(left_f, center_f + 1):
-            f_bank[i - 1, k] = (k - left_f) / (center_f - left_f)
+            f_bank[i - 1, k] = (k - left_f) / (center_f - left_f + 1e-10)
 
         for k in np.arange(center_f, right_f + 1):
             f_bank[i - 1, k] = (-k + right_f) / (-center_f + right_f)
