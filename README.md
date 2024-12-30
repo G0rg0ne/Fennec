@@ -8,6 +8,29 @@ https://zenodo.org/records/4060432
 
 # fennec
 
+## Docker
+
+First launch the Mlflow server : 
+```bash
+cd docker/
+docker build -t mlflow_server .
+docker-compose up -d
+```
+Build the main project conttainer:
+```bash
+docker build -t fennec .
+```
+
+Run the container and install dependencies
+```bash
+docker build -t fennec .
+```
+Training pipeline
+```bash
+kedro run -p audio_classification
+```
+
+
 [![Powered by Kedro](https://img.shields.io/badge/powered_by-kedro-ffc900?logo=kedro)](https://kedro.org)
 
 ## Overview
