@@ -4,7 +4,7 @@ from __future__ import annotations
 from kedro.framework.project import find_pipelines
 from kedro.pipeline import Pipeline
 from .pipelines.mfcc import pipeline as audio_ingestion_pipeline
-from .pipelines.freesound import pipeline as FSD50K_pre_processing
+from .pipelines.freesound import pipeline as FSD50K_training
 
 
 def register_pipelines() -> dict[str, Pipeline]:
@@ -18,5 +18,5 @@ def register_pipelines() -> dict[str, Pipeline]:
     return {
         "__default__": sum(pipelines.values()),
         "audio_ingest": audio_ingestion_pipeline.create_pipeline(),
-        "FSD50K_pre_processing": FSD50K_pre_processing.create_pipeline(),
+        "audio_classification": FSD50K_training.create_pipeline(),
     }

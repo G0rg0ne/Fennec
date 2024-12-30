@@ -20,7 +20,7 @@ import mlflow
 import mlflow.pytorch
 
 
-def pre_process(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
+def training_pipeline(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {device}")
     list_of_labels = vocab[1].tolist()
@@ -89,7 +89,7 @@ def pre_process(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processin
         # Log the final model
         mlflow.pytorch.log_model(model, "model")
         logger.info("Model logged to MLflow.")
-    return None
+    return model
 
 
 

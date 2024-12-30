@@ -46,5 +46,7 @@ GT_vocab:
   filepath: "data/01_raw/FSD50K.ground_truth/vocabulary.csv"
   load_args:
     header: null
-
+FSD50K_trained_model:
+  type: fennec.datasets.torch_model.TorchModelDataset
+  filepath: "data/06_models/FSD50K_model_.pth"
 
