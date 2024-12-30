@@ -16,9 +16,11 @@ from .model import CNNAudioClassifier
 from loguru import logger
 import mlflow
 from tqdm import tqdm
+import mlflow
+import mlflow.pytorch
 
 
-def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
+def pre_process(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logger.info(f"Device: {device}")
     list_of_labels = vocab[1].tolist()
@@ -29,8 +31,8 @@ def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_proces
     train_gt_fname_to_labels = dict(zip(train_gt['fname'], train_gt['labels']))
     eval_gt_fname_to_labels = dict(zip(eval_gt['fname'], eval_gt['labels']))
 
-    train_dataset = AudioFeatureDataset(train_audio,train_gt_fname_to_labels,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
-    eval_dataset = AudioFeatureDataset(eval_audio,eval_gt_fname_to_labels,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
+    train_dataset = AudioFeatureDataset(train_audio, train_gt_fname_to_labels, preprocess_raw_data, train=True, pre_processing_parameters=pre_processing_parameters)
+    eval_dataset = AudioFeatureDataset(eval_audio, eval_gt_fname_to_labels, preprocess_raw_data, train=False, pre_processing_parameters=pre_processing_parameters)
     train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
     eval_loader = DataLoader(eval_dataset, batch_size=256, shuffle=False)
 
@@ -41,39 +43,54 @@ def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_proces
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     num_epochs = 10
-    for epoch in range(num_epochs):
-        # Initialize the progress bar for the current epoch
-        epoch_loss = 0
-        model.train()
-        with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}", unit="batch") as pbar:
-            for idx, data in enumerate(train_loader):
-                # Transform class labels
-                data[1] = class_label_ecod.transform(data[1])
-                data[1] = torch.LongTensor(data[1])
-                
-                # Move inputs and labels to the device
-                inputs, labels = data[0].to(device), data[1].to(device)
-                optimizer.zero_grad()
-                
-                # Forward pass
-                outputs = model(inputs)
-                
-                # Compute loss
-                loss = criterion(outputs, labels)
-                epoch_loss += loss.item()
-                
-                # Backward pass and optimization
-                loss.backward()
-                optimizer.step()
-                
-                # Update progress bar
-                pbar.set_postfix(loss=loss.item())
-                pbar.update(1)
-        
-        # Log epoch loss
-        avg_loss = epoch_loss / len(train_loader)
-        logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
-    return train_loader, eval_loader
+
+    # Start MLflow run
+    with mlflow.start_run():
+        # Log hyperparameters
+        mlflow.log_param("input_size", input_size)
+        mlflow.log_param("num_classes", num_classes)
+        mlflow.log_param("learning_rate", learning_rate)
+        mlflow.log_param("batch_size", 256)
+        mlflow.log_param("num_epochs", num_epochs)
+
+        for epoch in range(num_epochs):
+            epoch_loss = 0
+            model.train()
+            with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}", unit="batch") as pbar:
+                for idx, data in enumerate(train_loader):
+                    # Transform class labels
+                    data[1] = class_label_ecod.transform(data[1])
+                    data[1] = torch.LongTensor(data[1])
+                    
+                    # Move inputs and labels to the device
+                    inputs, labels = data[0].to(device), data[1].to(device)
+                    optimizer.zero_grad()
+                    
+                    # Forward pass
+                    outputs = model(inputs)
+                    
+                    # Compute loss
+                    loss = criterion(outputs, labels)
+                    epoch_loss += loss.item()
+                    
+                    # Backward pass and optimization
+                    loss.backward()
+                    optimizer.step()
+                    
+                    # Update progress bar
+                    pbar.set_postfix(loss=loss.item())
+                    pbar.update(1)
+            
+            # Log metrics for the epoch
+            avg_loss = epoch_loss / len(train_loader)
+            mlflow.log_metric("avg_loss", avg_loss, step=epoch)
+            logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
+
+        # Log the final model
+        mlflow.pytorch.log_model(model, "model")
+        logger.info("Model logged to MLflow.")
+    return None
+
 
 
 def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):

@@ -4,13 +4,13 @@ generated using Kedro 0.19.10
 """
 from kedro.pipeline import Pipeline, node, pipeline
 from .nodes import (
-    pre_processing,
+    pre_process,
 )
 
 def create_pipeline(**kwargs) -> Pipeline:
     return pipeline([
         node(
-            func=pre_processing,
+            func=pre_process,
             inputs=[
                 "FSD50K_train_audio",
                 "FSD50K_eval_audio",
@@ -19,8 +19,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                 "GT_vocab",
                 "params:pre_processing_parameters",
             ],
-            outputs=["test_loader", "eval_loader"
-            ],
-            name="pre_processing_node",
+            outputs="trained_model",
+            name="train_model",
         )
     ])
