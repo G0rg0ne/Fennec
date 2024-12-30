@@ -43,6 +43,7 @@ def training_pipeline(
     class_label_ecod = le.fit(list_of_labels)
 
     train_gt["fname"] = train_gt["fname"].astype(str)
+    eval_gt["fname"] = eval_gt["fname"].astype(str)
     train_gt_fname_to_labels = dict(zip(train_gt["fname"], train_gt["labels"]))
     eval_gt_fname_to_labels = dict(zip(eval_gt["fname"], eval_gt["labels"]))
 
