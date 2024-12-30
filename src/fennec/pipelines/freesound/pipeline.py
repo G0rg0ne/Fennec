@@ -18,6 +18,7 @@ def create_pipeline(**kwargs) -> Pipeline:
                 "GT_eval_labels",
                 "GT_vocab",
                 "params:pre_processing_parameters",
+                "params:training_parameters",
             ],
             outputs="FSD50K_trained_model",
             name="train_model",

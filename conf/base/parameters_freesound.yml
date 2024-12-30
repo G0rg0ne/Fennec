@@ -14,3 +14,11 @@ pre_processing_parameters:
   padding:
     mode: "constant"
     fix_length : 15000
+
+training_parameters:
+  input_size : [32, 12]
+  num_classes : 200
+  learning_rate : 0.001
+  num_epochs : 10
+  batch_size : 256
+  num_workers : 4
