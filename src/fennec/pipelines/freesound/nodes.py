@@ -12,9 +12,10 @@ from .dataloader import AudioFeatureDataset
 from torch.utils.data import DataLoader
 from sklearn.preprocessing import LabelEncoder
 from torch import nn
-from .model import AudioClassifier
+from .model import CNNAudioClassifier
 from loguru import logger
 import mlflow
+from tqdm import tqdm
 
 
 def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_processing_parameters):
@@ -23,40 +24,55 @@ def pre_processing(train_audio, eval_audio, train_gt, eval_gt ,vocab ,pre_proces
     list_of_labels = vocab[1].tolist()
     le = LabelEncoder()
     class_label_ecod = le.fit(list_of_labels)
-
+    
     train_gt['fname'] = train_gt['fname'].astype(str)
     train_gt_fname_to_labels = dict(zip(train_gt['fname'], train_gt['labels']))
     eval_gt_fname_to_labels = dict(zip(eval_gt['fname'], eval_gt['labels']))
 
     train_dataset = AudioFeatureDataset(train_audio,train_gt_fname_to_labels,preprocess_raw_data,train=True,pre_processing_parameters=pre_processing_parameters)
     eval_dataset = AudioFeatureDataset(eval_audio,eval_gt_fname_to_labels,preprocess_raw_data,train=False,pre_processing_parameters=pre_processing_parameters)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    eval_loader = DataLoader(eval_dataset, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=256, shuffle=True)
+    eval_loader = DataLoader(eval_dataset, batch_size=256, shuffle=False)
 
-    input_dim = 12          # Number of MFCC features
-    hidden_dim = 64         # Number of neurons in the hidden layer
+    input_size = (32, 12)
     num_classes = 200       # Number of target classes
     learning_rate = 0.001   # Learning rate for the optimizer
-    model = AudioClassifier(input_dim, hidden_dim, num_classes)
+    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
     num_epochs = 10
-
     for epoch in range(num_epochs):
-        for idx, data in enumerate(train_loader):
-            data[1] = class_label_ecod.transform(data[1])
-            data[1]=torch.LongTensor(data[1])
-            inputs, labels = data[0].to(device), data[1].to(device)
-            optimizer.zero_grad()
-            # Forward pass
-            outputs = model(inputs)
-            # Compute loss
-            loss = criterion(outputs, labels)
-            # Backward pass and optimization
-            loss.backward()
-            optimizer.step()
-            # Log the loss for MLflow and Loguru
-        logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Loss: {loss.item():.4f}")
+        # Initialize the progress bar for the current epoch
+        epoch_loss = 0
+        model.train()
+        with tqdm(total=len(train_loader), desc=f"Epoch {epoch + 1}/{num_epochs}", unit="batch") as pbar:
+            for idx, data in enumerate(train_loader):
+                # Transform class labels
+                data[1] = class_label_ecod.transform(data[1])
+                data[1] = torch.LongTensor(data[1])
+                
+                # Move inputs and labels to the device
+                inputs, labels = data[0].to(device), data[1].to(device)
+                optimizer.zero_grad()
+                
+                # Forward pass
+                outputs = model(inputs)
+                
+                # Compute loss
+                loss = criterion(outputs, labels)
+                epoch_loss += loss.item()
+                
+                # Backward pass and optimization
+                loss.backward()
+                optimizer.step()
+                
+                # Update progress bar
+                pbar.set_postfix(loss=loss.item())
+                pbar.update(1)
+        
+        # Log epoch loss
+        avg_loss = epoch_loss / len(train_loader)
+        logger.info(f"Epoch [{epoch + 1}/{num_epochs}], Average Loss: {avg_loss:.4f}")
     return train_loader, eval_loader
 
 
