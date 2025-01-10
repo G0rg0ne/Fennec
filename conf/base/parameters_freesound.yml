@@ -13,10 +13,10 @@ pre_processing_parameters:
     n_mfcc: 13
   padding:
     mode: "constant"
-    fix_length : 15000
+    fix_length : 19000
 
 training_parameters:
-  input_size : [32, 12]
+  input_size : [13, 44]
   num_classes : 200
   learning_rate : 0.001
   num_epochs : 10

@@ -85,7 +85,6 @@ def training_pipeline(
     )
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
     # Start MLflow run
     with mlflow.start_run():
         # Log hyperparameters
@@ -185,19 +184,22 @@ def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
     """
 
     # pad data to fix length
-    data_set_fix_length = pad_sample(data, pad_params)
+    padded_audio = librosa.util.fix_length(
+            data, size=pad_params["fix_length"], axis=0, mode=pad_params["mode"]
+        )
+    padded_audio = padded_audio.astype(np.float32)
     # extract MFCC for each sample
-    mfcc_features = mfcc_extraction(
-        data_set_fix_length,
-        mfcc_parameters["fs"],
-        mfcc_parameters["n_fft"],
-        mfcc_parameters["frame_size"],
-        mfcc_parameters["frame_step"],
-        mfcc_parameters["n_mels"],
-        mfcc_parameters["n_mfcc"],
-    )
-
-    return mfcc_features
+    mfcc = librosa.feature.mfcc(
+            y=padded_audio,
+            sr=mfcc_parameters["fs"],
+            n_mfcc=mfcc_parameters["n_mfcc"],
+            n_fft=mfcc_parameters["n_fft"],
+            hop_length=int(mfcc_parameters["frame_step"] * mfcc_parameters["fs"]),
+            n_mels=mfcc_parameters["n_mels"]
+        )
+    #data_set_fix_length = data_set_fix_length.astype(np.float32)
+    #mfcc = librosa.feature.mfcc(y=data_set_fix_length, sr=mfcc_parameters["fs"], n_mfcc=13)
+    return mfcc
 
 
 def pad_sample(sample: tuple, pad_params: dict):
