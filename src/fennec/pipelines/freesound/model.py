@@ -28,7 +28,7 @@ class CNNAudioClassifier(nn.Module):
         # Fully connected layers
         self.fc1 = nn.Linear(self.flatten_size, 128)
         self.dropout = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(128, num_classes)
+        self.fc2 = nn.Linear(128, num_classes)  # Output layer: num_classes units
 
     def _get_flatten_size(self, input_size):
         """
@@ -46,5 +46,5 @@ class CNNAudioClassifier(nn.Module):
         x = x.view(x.size(0), -1)  # Flatten
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
-        x = self.fc2(x)
-        return x
+        x = self.fc2(x)  # Output logits (no activation here)
+        return x  # Apply sigmoid during inference if needed

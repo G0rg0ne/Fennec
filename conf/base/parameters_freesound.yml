@@ -19,6 +19,7 @@ training_parameters:
   input_size : [13, 44]
   num_classes : 200
   learning_rate : 0.001
-  num_epochs : 10
+  num_epochs : 30
   batch_size : 256
   num_workers : 4
+  threshold : 0.3

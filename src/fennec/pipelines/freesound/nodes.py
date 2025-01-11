@@ -25,6 +25,10 @@ import mlflow
 from tqdm import tqdm
 import mlflow
 import mlflow.pytorch
+from sklearn.metrics import hamming_loss, precision_score, recall_score, f1_score
+from sklearn.preprocessing import StandardScaler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.nn.utils import clip_grad_norm_
 
 
 def training_pipeline(
@@ -40,7 +44,7 @@ def training_pipeline(
     logger.info(f"Device: {device}")
     list_of_labels = vocab[1].tolist()
     le = LabelEncoder()
-    class_label_ecod = le.fit(list_of_labels)
+    class_label_encod = le.fit(list_of_labels)
 
     train_gt["fname"] = train_gt["fname"].astype(str)
     eval_gt["fname"] = eval_gt["fname"].astype(str)
@@ -53,6 +57,7 @@ def training_pipeline(
         preprocess_raw_data,
         train=True,
         pre_processing_parameters=pre_processing_parameters,
+        label_encoder=class_label_encod,
     )
     eval_dataset = AudioFeatureDataset(
         eval_audio,
@@ -60,6 +65,7 @@ def training_pipeline(
         preprocess_raw_data,
         train=False,
         pre_processing_parameters=pre_processing_parameters,
+        label_encoder=class_label_encod,
     )
     train_loader = DataLoader(
         train_dataset,
@@ -83,8 +89,9 @@ def training_pipeline(
     model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes).to(
         device
     )
-    criterion = nn.CrossEntropyLoss()
+    criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, verbose=True)
     # Start MLflow run
     with mlflow.start_run():
         # Log hyperparameters
@@ -103,9 +110,6 @@ def training_pipeline(
                 unit="batch",
             ) as pbar:
                 for idx, data in enumerate(train_loader):
-                    # Transform class labels
-                    data[1] = class_label_ecod.transform(data[1])
-                    data[1] = torch.LongTensor(data[1])
 
                     # Move inputs and labels to the device
                     inputs, labels = data[0].to(device), data[1].to(device)
@@ -120,6 +124,10 @@ def training_pipeline(
 
                     # Backward pass and optimization
                     loss.backward()
+                     # Gradient clipping
+                    clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+                    # Optimization step
                     optimizer.step()
 
                     # Update progress bar
@@ -136,16 +144,13 @@ def training_pipeline(
             # Evaluation Loop
             model.eval()
             eval_loss = 0
-            correct = 0
-            total = 0
+            all_labels = []
+            all_outputs = []
             with torch.no_grad():
                 for data in eval_loader:
-                    # Transform class labels
-                    data[1] = class_label_ecod.transform(data[1])
-                    data[1] = torch.LongTensor(data[1])
 
                     # Move inputs and labels to the device
-                    inputs, labels = data[0].to(device), data[1].to(device)
+                    inputs, labels = data[0].to(device), data [1].to(device)
 
                     # Forward pass
                     outputs = model(inputs)
@@ -154,23 +159,54 @@ def training_pipeline(
                     loss = criterion(outputs, labels)
                     eval_loss += loss.item()
 
-                    # Compute accuracy
-                    _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
+                    # Store labels and predictions for metric calculation
+                    all_labels.append(labels.cpu())
+                    all_outputs.append(torch.sigmoid(outputs).cpu())
 
             avg_eval_loss = eval_loss / len(eval_loader)
-            accuracy = correct / total
+
+            # Concatenate all labels and outputs
+            all_labels = torch.cat(all_labels).numpy()
+            all_outputs = torch.cat(all_outputs).numpy()
+
+            # Apply threshold to convert probabilities to binary predictions
+            threshold = training_parameters['threshold'] 
+            predictions = (all_outputs > threshold).astype(int)
+
+            # Compute metrics
+            hamming = hamming_loss(all_labels, predictions)
+            precision = precision_score(all_labels, predictions, average="samples", zero_division=0)
+            recall = recall_score(all_labels, predictions, average="samples", zero_division=0)
+            f1 = f1_score(all_labels, predictions, average="samples", zero_division=0)
+            # Log metrics
             mlflow.log_metric("avg_eval_loss", avg_eval_loss, step=epoch)
-            mlflow.log_metric("eval_accuracy", accuracy, step=epoch)
+            mlflow.log_metric("hamming_loss", hamming, step=epoch)
+            mlflow.log_metric("precision", precision, step=epoch)
+            mlflow.log_metric("recall", recall, step=epoch)
+            mlflow.log_metric("f1_score", f1, step=epoch)
+
             logger.info(
-                f"Validation Loss: {avg_eval_loss:.4f}, Accuracy: {accuracy:.4f}"
+                f"Validation Loss: {avg_eval_loss:.4f}, "
+                f"Hamming Loss: {hamming:.4f}, "
+                f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}"
             )
+             # Step the scheduler with the validation loss
+            scheduler.step(avg_eval_loss)
+
+            # Log learning rate
+            current_lr = optimizer.param_groups[0]['lr']
+            mlflow.log_metric("learning_rate", current_lr, step=epoch)
+            logger.info(f"Current learning rate: {current_lr}")
+
+            # Optional: Early stopping based on learning rate
+            if current_lr < 1e-6:  # Define a minimum learning rate threshold
+                logger.info("Learning rate has reached the minimum threshold. Stopping training.")
+                break
 
         # Log the final model
         mlflow.pytorch.log_model(model, "model")
         logger.info("Model logged to MLflow.")
-    return model
+        return model
 
 
 def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
@@ -197,9 +233,9 @@ def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
             hop_length=int(mfcc_parameters["frame_step"] * mfcc_parameters["fs"]),
             n_mels=mfcc_parameters["n_mels"]
         )
-    #data_set_fix_length = data_set_fix_length.astype(np.float32)
-    #mfcc = librosa.feature.mfcc(y=data_set_fix_length, sr=mfcc_parameters["fs"], n_mfcc=13)
-    return mfcc
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(mfcc)
+    return scaled_features
 
 
 def pad_sample(sample: tuple, pad_params: dict):
