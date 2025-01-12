@@ -5,11 +5,12 @@ from torch.utils.data import Dataset, DataLoader
 
 
 class CNNAudioClassifier(nn.Module):
-    def __init__(self, input_size, num_classes):
+    def __init__(self, input_size, num_classes, initial_temperature=1.0):
         """
         Args:
             input_size (tuple): Tuple of (time_steps, n_mfcc), e.g., (32, 12).
             num_classes (int): Number of output classes for classification.
+            initial_temperature (float): Initial value for the temperature parameter.
         """
         super(CNNAudioClassifier, self).__init__()
         self.input_size = input_size  # (time_steps, n_mfcc)
@@ -36,8 +37,11 @@ class CNNAudioClassifier(nn.Module):
 
         # Fully connected layers
         self.fc1 = nn.Linear(128, 256)
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.3)
         self.fc2 = nn.Linear(256, num_classes)  # Output layer: num_classes units
+
+        # Learnable temperature parameter
+        self.temperature = nn.Parameter(torch.tensor(initial_temperature, dtype=torch.float32))
 
         # Xavier initialization
         self._initialize_weights()
@@ -78,6 +82,9 @@ class CNNAudioClassifier(nn.Module):
         # Fully connected layers
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
-        x = self.fc2(x)  # Output logits (no activation here)
+        logits = self.fc2(x)  # Output logits (no activation here)
 
-        return x  # Apply sigmoid during inference if needed
+        # Apply temperature scaling to logits
+        scaled_logits = logits / self.temperature
+
+        return scaled_logits

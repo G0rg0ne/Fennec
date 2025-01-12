@@ -86,7 +86,7 @@ def training_pipeline(
     ]  # Learning rate for the optimizer
     num_epochs = training_parameters["num_epochs"]
 
-    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes).to(
+    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes,initial_temperature=0.5).to(
         device
     )
     criterion = torch.nn.BCEWithLogitsLoss()
@@ -125,7 +125,7 @@ def training_pipeline(
                     # Backward pass and optimization
                     loss.backward()
                     # Gradient clipping
-                    #clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    clip_grad_norm_(model.parameters(), max_norm=1.0)
 
                     # Optimization step
                     optimizer.step()
@@ -161,14 +161,13 @@ def training_pipeline(
 
                     # Store labels and predictions for metric calculation
                     all_labels.append(labels.cpu())
-                    all_outputs.append(torch.sigmoid(outputs).cpu())
+                    all_outputs.append(torch.sigmoid(outputs/0.5).cpu())
 
             avg_eval_loss = eval_loss / len(eval_loader)
 
             # Concatenate all labels and outputs
             all_labels = torch.cat(all_labels).numpy()
             all_outputs = torch.cat(all_outputs).numpy()
-            import pdb; pdb.set_trace()
             # Apply threshold to convert probabilities to binary predictions
             threshold = training_parameters['threshold'] 
             predictions = (all_outputs > threshold).astype(int)
