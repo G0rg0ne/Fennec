@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
+
 class CNNAudioClassifier(nn.Module):
     def __init__(self, input_size, num_classes):
         """
@@ -13,38 +14,70 @@ class CNNAudioClassifier(nn.Module):
         super(CNNAudioClassifier, self).__init__()
         self.input_size = input_size  # (time_steps, n_mfcc)
 
-        # Convolutional layers
+        # First convolutional block
         self.conv1 = nn.Conv2d(1, 16, kernel_size=(3, 3), stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(16)
         self.pool1 = nn.MaxPool2d(kernel_size=(2, 2))
 
+        # Second convolutional block
         self.conv2 = nn.Conv2d(16, 32, kernel_size=(3, 3), stride=1, padding=1)
         self.bn2 = nn.BatchNorm2d(32)
         self.pool2 = nn.MaxPool2d(kernel_size=(2, 2))
 
-        # Dynamically calculate the flattened size
-        self.flatten_size = self._get_flatten_size(input_size)
+        # Third convolutional block
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=(3, 3), stride=1, padding=1)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.pool3 = nn.MaxPool2d(kernel_size=(2, 2))
+
+        # Fourth convolutional block
+        self.conv4 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=1, padding=1)
+        self.bn4 = nn.BatchNorm2d(128)
+        self.pool4 = nn.AdaptiveAvgPool2d((1, 1))  # Global average pooling
 
         # Fully connected layers
-        self.fc1 = nn.Linear(self.flatten_size, 128)
-        self.dropout = nn.Dropout(0.3)
-        self.fc2 = nn.Linear(128, num_classes)  # Output layer: num_classes units
+        self.fc1 = nn.Linear(128, 256)
+        self.dropout = nn.Dropout(0.5)
+        self.fc2 = nn.Linear(256, num_classes)  # Output layer: num_classes units
 
-    def _get_flatten_size(self, input_size):
+        # Xavier initialization
+        self._initialize_weights()
+
+    def _initialize_weights(self):
         """
-        Calculate the size of the flattened tensor after convolution and pooling.
+        Initialize weights using Xavier initialization.
         """
-        x = torch.zeros(1, 1, *input_size)  # Dummy input: (batch_size, channels, time_steps, n_mfcc)
-        x = self.pool1(torch.relu(self.bn1(self.conv1(x))))
-        x = self.pool2(torch.relu(self.bn2(self.conv2(x))))
-        return x.numel()  # Total number of elements in the tensor
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d) or isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def forward(self, x):
-        x = x.unsqueeze(1)  # Add channel dimension for Conv2D
-        x = self.pool1(torch.relu(self.bn1(self.conv1(x))))
-        x = self.pool2(torch.relu(self.bn2(self.conv2(x))))
-        x = x.view(x.size(0), -1)  # Flatten
+        # Add channel dimension for Conv2D
+        x = x.unsqueeze(1)  # Input: (batch_size, 1, time_steps, n_mfcc)
+
+        # First block
+        x = torch.relu(self.bn1(self.conv1(x)))
+        x = self.pool1(x)
+
+        # Second block
+        x = torch.relu(self.bn2(self.conv2(x)))
+        x = self.pool2(x)
+
+        # Third block
+        x = torch.relu(self.bn3(self.conv3(x)))
+        x = self.pool3(x)
+
+        # Fourth block with global average pooling
+        x = torch.relu(self.bn4(self.conv4(x)))
+        x = self.pool4(x)  # Output: (batch_size, 128, 1, 1)
+
+        # Flatten for fully connected layers
+        x = x.view(x.size(0), -1)  # Output: (batch_size, 128)
+
+        # Fully connected layers
         x = torch.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.fc2(x)  # Output logits (no activation here)
+
         return x  # Apply sigmoid during inference if needed

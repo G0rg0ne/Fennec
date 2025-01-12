@@ -124,8 +124,8 @@ def training_pipeline(
 
                     # Backward pass and optimization
                     loss.backward()
-                     # Gradient clipping
-                    clip_grad_norm_(model.parameters(), max_norm=1.0)
+                    # Gradient clipping
+                    #clip_grad_norm_(model.parameters(), max_norm=1.0)
 
                     # Optimization step
                     optimizer.step()
@@ -168,7 +168,7 @@ def training_pipeline(
             # Concatenate all labels and outputs
             all_labels = torch.cat(all_labels).numpy()
             all_outputs = torch.cat(all_outputs).numpy()
-
+            import pdb; pdb.set_trace()
             # Apply threshold to convert probabilities to binary predictions
             threshold = training_parameters['threshold'] 
             predictions = (all_outputs > threshold).astype(int)
