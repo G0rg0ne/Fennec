@@ -65,33 +65,34 @@ def training_pipeline(
         preprocess_raw_data,
         train=False,
         pre_processing_parameters=pre_processing_parameters,
-        label_encoder=class_label_encod,
+        label_encoder=class_label_encod, 
     )
     train_loader = DataLoader(
         train_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=True,
         num_workers=training_parameters["num_workers"],
+        pin_memory=True,
     )
     eval_loader = DataLoader(
         eval_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=False,
         num_workers=training_parameters["num_workers"],
+        pin_memory=True,
     )
-    input_size = tuple(training_parameters["input_size"])
+    input_size = tuple(train_dataset[0][0].shape) #tuple(training_parameters["input_size"])
     num_classes = training_parameters["num_classes"]  # Number of target classes
     learning_rate = training_parameters[
         "learning_rate"
     ]  # Learning rate for the optimizer
     num_epochs = training_parameters["num_epochs"]
-
     model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes,initial_temperature=0.5).to(
         device
     )
     criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=3, verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
     # Start MLflow run
     with mlflow.start_run():
         # Log hyperparameters
@@ -114,7 +115,6 @@ def training_pipeline(
                     # Move inputs and labels to the device
                     inputs, labels = data[0].to(device), data[1].to(device)
                     optimizer.zero_grad()
-
                     # Forward pass
                     outputs = model(inputs)
 
@@ -161,8 +161,8 @@ def training_pipeline(
 
                     # Store labels and predictions for metric calculation
                     all_labels.append(labels.cpu())
-                    all_outputs.append(torch.sigmoid(outputs/0.5).cpu())
-
+                    all_outputs.append(torch.sigmoid(outputs).cpu())
+            import pdb;pdb.set_trace()
             avg_eval_loss = eval_loss / len(eval_loader)
 
             # Concatenate all labels and outputs
@@ -201,9 +201,13 @@ def training_pipeline(
             if current_lr < 1e-6:  # Define a minimum learning rate threshold
                 logger.info("Learning rate has reached the minimum threshold. Stopping training.")
                 break
-
+        input_example = torch.rand(1, input_size[0], input_size[1]) 
         # Log the final model
-        mlflow.pytorch.log_model(model, "model")
+        mlflow.pytorch.log_model(
+            model,
+            artifact_path="model",
+            input_example= input_example ,
+            )
         logger.info("Model logged to MLflow.")
         return model
 
@@ -223,17 +227,10 @@ def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
             data, size=pad_params["fix_length"], axis=0, mode=pad_params["mode"]
         )
     padded_audio = padded_audio.astype(np.float32)
-    # extract MFCC for each sample
-    mfcc = librosa.feature.mfcc(
-            y=padded_audio,
-            sr=mfcc_parameters["fs"],
-            n_mfcc=mfcc_parameters["n_mfcc"],
-            n_fft=mfcc_parameters["n_fft"],
-            hop_length=int(mfcc_parameters["frame_step"] * mfcc_parameters["fs"]),
-            n_mels=mfcc_parameters["n_mels"]
-        )
+    mel_spectrogram = librosa.feature.melspectrogram(y=padded_audio, sr=mfcc_parameters["fs"], n_mels=mfcc_parameters["n_mels"])
+    log_mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
     scaler = StandardScaler()
-    scaled_features = scaler.fit_transform(mfcc)
+    scaled_features = scaler.fit_transform(log_mel_spectrogram)
     return scaled_features
 
 
