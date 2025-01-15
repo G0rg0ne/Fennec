@@ -15,7 +15,7 @@ import librosa
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 import torch
-from .dataloader import AudioFeatureDataset
+from .dataloader import AudioFeatureDataset,CustomAudioDataset
 from torch.utils.data import DataLoader
 from sklearn.preprocessing import LabelEncoder
 from torch import nn
@@ -56,19 +56,6 @@ def extract_features(
         eval_dict[eval_data[0]] = eval_data[1] 
     return train_data, eval_dict
 
-def labelize_data(data: dict, labels_dict: dict, label_encoder: LabelEncoder):
-    num_classes = len(label_encoder.classes_)
-    labelized_data = [
-        (
-            torch.tensor(value(), dtype=torch.float32),  # Audio tensor
-            torch.zeros(num_classes, dtype=torch.float32).scatter_(
-                0, torch.tensor(label_encoder.transform(labels_dict[key].split(',')), dtype=torch.long), 1.0
-            )
-        )
-        for key, value in data.items()
-    ]
-    return labelized_data
-
 def training_pipeline(
     train_audio,
     eval_audio,
@@ -83,35 +70,37 @@ def training_pipeline(
     list_of_labels = vocab[1].tolist()
     le = LabelEncoder()
     class_label_encod = le.fit(list_of_labels)
+    num_classes = len(class_label_encod.classes_)
 
     train_gt["fname"] = train_gt["fname"].astype(str)
     eval_gt["fname"] = eval_gt["fname"].astype(str)
     train_gt_fname_to_labels = dict(zip(train_gt["fname"], train_gt["labels"]))
     eval_gt_fname_to_labels = dict(zip(eval_gt["fname"], eval_gt["labels"]))
 
-    train_audio = labelize_data(train_audio, train_gt_fname_to_labels,class_label_encod)
-    eval_audio = labelize_data(eval_audio, eval_gt_fname_to_labels,class_label_encod)
+    # Create dataset instances
+    train_dataset = CustomAudioDataset(train_audio, train_gt_fname_to_labels, class_label_encod, num_classes)
+    eval_dataset = CustomAudioDataset(eval_audio, eval_gt_fname_to_labels, class_label_encod, num_classes)
+
     train_loader = DataLoader(
-        train_audio,
+        train_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=True,
         num_workers=training_parameters["num_workers"],
         pin_memory=True,
     )
     eval_loader = DataLoader(
-        eval_audio,
+        eval_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=False,
         num_workers=training_parameters["num_workers"],
         pin_memory=True,
     ) 
-    input_size = tuple(train_audio[0][0].shape) #tuple(training_parameters["input_size"])
-    num_classes = training_parameters["num_classes"]  # Number of target classes
+    input_size = tuple(train_dataset[0][0].shape) #tuple(training_parameters["input_size"])
     learning_rate = training_parameters[
         "learning_rate"
     ]  # Learning rate for the optimizer
     num_epochs = training_parameters["num_epochs"]
-    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes,initial_temperature=0.5).to(
+    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes,initial_temperature=training_parameters["temperature"]).to(
         device
     )
     criterion = torch.nn.BCEWithLogitsLoss()

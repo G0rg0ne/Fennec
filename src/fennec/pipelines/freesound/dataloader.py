@@ -49,3 +49,39 @@ class AudioFeatureDataset(Dataset):
         audio_tensor = torch.tensor(audio_data, dtype=torch.float32)
 
         return audio_tensor, label_vector
+    
+class CustomAudioDataset(Dataset):
+    def __init__(self, data, labels_dict, label_encoder, num_classes):
+        """
+        Args:
+            data (dict): Dictionary where keys are filenames and values are functions to load audio.
+            labels_dict (dict): Dictionary mapping filenames to their labels.
+            label_encoder (LabelEncoder): Fitted LabelEncoder for encoding labels.
+            num_classes (int): Number of unique classes.
+        """
+        self.data = data
+        self.labels_dict = labels_dict
+        self.label_encoder = label_encoder
+        self.num_classes = num_classes
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        # Get the filename and corresponding loader function
+        filename = list(self.data.keys())[idx]
+        audio_loader = self.data[filename]
+
+        # Load the audio data lazily
+        audio_tensor = torch.tensor(audio_loader(), dtype=torch.float32)
+
+        # Get the labels for the audio file
+        label = self.labels_dict[filename]
+        encoded_label = self.label_encoder.transform(label.split(','))
+
+        # Create one-hot encoded tensor for the labels
+        label_tensor = torch.zeros(self.num_classes, dtype=torch.float32).scatter_(
+            0, torch.tensor(encoded_label, dtype=torch.long), 1.0
+        )
+
+        return audio_tensor, label_tensor

@@ -16,9 +16,10 @@ pre_processing_parameters:
     fix_length : 100000
 
 training_parameters:
+  temperature : 0.5
   num_classes : 200
   learning_rate : 0.001
-  num_epochs : 25
-  batch_size : 2
-  num_workers : 10
-  threshold : 0.3
+  num_epochs : 30
+  batch_size : 128
+  num_workers : 8
+  threshold : 0.4
