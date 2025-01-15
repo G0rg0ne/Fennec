@@ -56,6 +56,19 @@ def extract_features(
         eval_dict[eval_data[0]] = eval_data[1] 
     return train_data, eval_dict
 
+def labelize_data(data: dict, labels_dict: dict, label_encoder: LabelEncoder):
+    num_classes = len(label_encoder.classes_)
+    labelized_data = [
+        (
+            torch.tensor(value(), dtype=torch.float32),  # Audio tensor
+            torch.zeros(num_classes, dtype=torch.float32).scatter_(
+                0, torch.tensor(label_encoder.transform(labels_dict[key].split(',')), dtype=torch.long), 1.0
+            )
+        )
+        for key, value in data.items()
+    ]
+    return labelized_data
+
 def training_pipeline(
     train_audio,
     eval_audio,
@@ -76,6 +89,8 @@ def training_pipeline(
     train_gt_fname_to_labels = dict(zip(train_gt["fname"], train_gt["labels"]))
     eval_gt_fname_to_labels = dict(zip(eval_gt["fname"], eval_gt["labels"]))
 
+    train_audio = labelize_data(train_audio, train_gt_fname_to_labels,class_label_encod)
+    eval_audio = labelize_data(eval_audio, eval_gt_fname_to_labels,class_label_encod)
     train_loader = DataLoader(
         train_audio,
         batch_size=training_parameters["batch_size"],
@@ -89,9 +104,8 @@ def training_pipeline(
         shuffle=False,
         num_workers=training_parameters["num_workers"],
         pin_memory=True,
-    )
-    import pdb;pdb.set_trace()
-    input_size = tuple(train_loader[0][0].shape) #tuple(training_parameters["input_size"])
+    ) 
+    input_size = tuple(train_audio[0][0].shape) #tuple(training_parameters["input_size"])
     num_classes = training_parameters["num_classes"]  # Number of target classes
     learning_rate = training_parameters[
         "learning_rate"
@@ -172,7 +186,6 @@ def training_pipeline(
                     # Store labels and predictions for metric calculation
                     all_labels.append(labels.cpu())
                     all_outputs.append(torch.sigmoid(outputs).cpu())
-            import pdb;pdb.set_trace()
             avg_eval_loss = eval_loss / len(eval_loader)
 
             # Concatenate all labels and outputs

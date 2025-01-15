@@ -52,10 +52,10 @@ FSD50K_trained_model:
 FSD50K_train_features:
   type: partitions.PartitionedDataset
   dataset: fennec.datasets.numpyDataset.NumPyDataSet
-  path: data/02_intermediate/train_features
+  path: data/02_intermediate/train_test
   filename_suffix: ".npy"
 FSD50K_eval_features:
   type: partitions.PartitionedDataset
   dataset: fennec.datasets.numpyDataset.NumPyDataSet
-  path: data/02_intermediate/val_features
+  path: data/02_intermediate/val_test
   filename_suffix: ".npy"

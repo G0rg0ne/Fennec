@@ -35,6 +35,6 @@ def create_pipeline(**kwargs) -> Pipeline:
                 "params:training_parameters",
             ],
             outputs="FSD50K_trained_model",
-            name="train_model",
+            tags="train_model",
         )
     ])
