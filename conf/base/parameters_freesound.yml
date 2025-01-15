@@ -9,16 +9,17 @@ pre_processing_parameters:
     n_fft: 512
     frame_size: 0.025
     frame_step: 0.01
-    n_mels: 40
+    n_mels: 128
     n_mfcc: 13
   padding:
     mode: "constant"
-    fix_length : 15000
+    fix_length : 100000
 
 training_parameters:
-  input_size : [32, 12]
+  temperature : 0.5
   num_classes : 200
   learning_rate : 0.001
-  num_epochs : 10
-  batch_size : 256
-  num_workers : 4
+  num_epochs : 30
+  batch_size : 128
+  num_workers : 8
+  threshold : 0.4

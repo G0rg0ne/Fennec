@@ -49,4 +49,13 @@ GT_vocab:
 FSD50K_trained_model:
   type: fennec.datasets.torch_model.TorchModelDataset
   filepath: "data/06_models/FSD50K_model.pth"
-
+FSD50K_train_features:
+  type: partitions.PartitionedDataset
+  dataset: fennec.datasets.numpyDataset.NumPyDataSet
+  path: data/02_intermediate/train_features
+  filename_suffix: ".npy"
+FSD50K_eval_features:
+  type: partitions.PartitionedDataset
+  dataset: fennec.datasets.numpyDataset.NumPyDataSet
+  path: data/02_intermediate/val_features
+  filename_suffix: ".npy"

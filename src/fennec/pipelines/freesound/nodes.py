@@ -13,9 +13,9 @@ from .utils import (
 import numpy as np
 import librosa
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict, List, Tuple
 import torch
-from .dataloader import AudioFeatureDataset
+from .dataloader import AudioFeatureDataset,CustomAudioDataset
 from torch.utils.data import DataLoader
 from sklearn.preprocessing import LabelEncoder
 from torch import nn
@@ -25,7 +25,36 @@ import mlflow
 from tqdm import tqdm
 import mlflow
 import mlflow.pytorch
+from sklearn.metrics import hamming_loss, precision_score, recall_score, f1_score
+from sklearn.preprocessing import StandardScaler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.nn.utils import clip_grad_norm_
 
+def extract_features(
+        train_audio,
+        eval_audio,
+        pre_processing_parameters,
+        ):
+    train_dict = {}
+    eval_dict = {}
+    train_dataset = AudioFeatureDataset(
+        train_audio,
+        preprocess_raw_data,
+        train=True,
+        pre_processing_parameters=pre_processing_parameters,
+    )
+    eval_dataset = AudioFeatureDataset(
+        eval_audio,
+        preprocess_raw_data,
+        train=False,
+        pre_processing_parameters=pre_processing_parameters, 
+    )
+
+    for train_data in train_dataset:
+        train_dict[train_data[0]] = train_data[1]   
+    for eval_data in eval_dataset:
+        eval_dict[eval_data[0]] = eval_data[1] 
+    return train_data, eval_dict
 
 def training_pipeline(
     train_audio,
@@ -40,52 +69,43 @@ def training_pipeline(
     logger.info(f"Device: {device}")
     list_of_labels = vocab[1].tolist()
     le = LabelEncoder()
-    class_label_ecod = le.fit(list_of_labels)
+    class_label_encod = le.fit(list_of_labels)
+    num_classes = len(class_label_encod.classes_)
 
     train_gt["fname"] = train_gt["fname"].astype(str)
     eval_gt["fname"] = eval_gt["fname"].astype(str)
     train_gt_fname_to_labels = dict(zip(train_gt["fname"], train_gt["labels"]))
     eval_gt_fname_to_labels = dict(zip(eval_gt["fname"], eval_gt["labels"]))
 
-    train_dataset = AudioFeatureDataset(
-        train_audio,
-        train_gt_fname_to_labels,
-        preprocess_raw_data,
-        train=True,
-        pre_processing_parameters=pre_processing_parameters,
-    )
-    eval_dataset = AudioFeatureDataset(
-        eval_audio,
-        eval_gt_fname_to_labels,
-        preprocess_raw_data,
-        train=False,
-        pre_processing_parameters=pre_processing_parameters,
-    )
+    # Create dataset instances
+    train_dataset = CustomAudioDataset(train_audio, train_gt_fname_to_labels, class_label_encod, num_classes)
+    eval_dataset = CustomAudioDataset(eval_audio, eval_gt_fname_to_labels, class_label_encod, num_classes)
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=True,
         num_workers=training_parameters["num_workers"],
+        pin_memory=True,
     )
     eval_loader = DataLoader(
         eval_dataset,
         batch_size=training_parameters["batch_size"],
         shuffle=False,
         num_workers=training_parameters["num_workers"],
-    )
-    input_size = tuple(training_parameters["input_size"])
-    num_classes = training_parameters["num_classes"]  # Number of target classes
+        pin_memory=True,
+    ) 
+    input_size = tuple(train_dataset[0][0].shape) #tuple(training_parameters["input_size"])
     learning_rate = training_parameters[
         "learning_rate"
     ]  # Learning rate for the optimizer
     num_epochs = training_parameters["num_epochs"]
-
-    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes).to(
+    model = CNNAudioClassifier(input_size=input_size, num_classes=num_classes,initial_temperature=training_parameters["temperature"]).to(
         device
     )
-    criterion = nn.CrossEntropyLoss()
+    criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
-
+    scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=3, verbose=True)
     # Start MLflow run
     with mlflow.start_run():
         # Log hyperparameters
@@ -104,14 +124,10 @@ def training_pipeline(
                 unit="batch",
             ) as pbar:
                 for idx, data in enumerate(train_loader):
-                    # Transform class labels
-                    data[1] = class_label_ecod.transform(data[1])
-                    data[1] = torch.LongTensor(data[1])
 
                     # Move inputs and labels to the device
                     inputs, labels = data[0].to(device), data[1].to(device)
                     optimizer.zero_grad()
-
                     # Forward pass
                     outputs = model(inputs)
 
@@ -121,6 +137,10 @@ def training_pipeline(
 
                     # Backward pass and optimization
                     loss.backward()
+                    # Gradient clipping
+                    clip_grad_norm_(model.parameters(), max_norm=1.0)
+
+                    # Optimization step
                     optimizer.step()
 
                     # Update progress bar
@@ -137,16 +157,13 @@ def training_pipeline(
             # Evaluation Loop
             model.eval()
             eval_loss = 0
-            correct = 0
-            total = 0
+            all_labels = []
+            all_outputs = []
             with torch.no_grad():
                 for data in eval_loader:
-                    # Transform class labels
-                    data[1] = class_label_ecod.transform(data[1])
-                    data[1] = torch.LongTensor(data[1])
 
                     # Move inputs and labels to the device
-                    inputs, labels = data[0].to(device), data[1].to(device)
+                    inputs, labels = data[0].to(device), data [1].to(device)
 
                     # Forward pass
                     outputs = model(inputs)
@@ -155,23 +172,56 @@ def training_pipeline(
                     loss = criterion(outputs, labels)
                     eval_loss += loss.item()
 
-                    # Compute accuracy
-                    _, predicted = torch.max(outputs, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-
+                    # Store labels and predictions for metric calculation
+                    all_labels.append(labels.cpu())
+                    all_outputs.append(torch.sigmoid(outputs).cpu())
             avg_eval_loss = eval_loss / len(eval_loader)
-            accuracy = correct / total
-            mlflow.log_metric("avg_eval_loss", avg_eval_loss, step=epoch)
-            mlflow.log_metric("eval_accuracy", accuracy, step=epoch)
-            logger.info(
-                f"Validation Loss: {avg_eval_loss:.4f}, Accuracy: {accuracy:.4f}"
-            )
 
+            # Concatenate all labels and outputs
+            all_labels = torch.cat(all_labels).numpy()
+            all_outputs = torch.cat(all_outputs).numpy()
+            # Apply threshold to convert probabilities to binary predictions
+            threshold = training_parameters['threshold'] 
+            predictions = (all_outputs > threshold).astype(int)
+
+            # Compute metrics
+            hamming = hamming_loss(all_labels, predictions)
+            precision = precision_score(all_labels, predictions, average="samples", zero_division=0)
+            recall = recall_score(all_labels, predictions, average="samples", zero_division=0)
+            f1 = f1_score(all_labels, predictions, average="samples", zero_division=0)
+            # Log metrics
+            mlflow.log_metric("avg_eval_loss", avg_eval_loss, step=epoch)
+            mlflow.log_metric("hamming_loss", hamming, step=epoch)
+            mlflow.log_metric("precision", precision, step=epoch)
+            mlflow.log_metric("recall", recall, step=epoch)
+            mlflow.log_metric("f1_score", f1, step=epoch)
+
+            logger.info(
+                f"Validation Loss: {avg_eval_loss:.4f}, "
+                f"Hamming Loss: {hamming:.4f}, "
+                f"Precision: {precision:.4f}, Recall: {recall:.4f}, F1-Score: {f1:.4f}"
+            )
+             # Step the scheduler with the validation loss
+            scheduler.step(avg_eval_loss)
+
+            # Log learning rate
+            current_lr = optimizer.param_groups[0]['lr']
+            mlflow.log_metric("learning_rate", current_lr, step=epoch)
+            logger.info(f"Current learning rate: {current_lr}")
+
+            # Optional: Early stopping based on learning rate
+            if current_lr < 1e-6:  # Define a minimum learning rate threshold
+                logger.info("Learning rate has reached the minimum threshold. Stopping training.")
+                break
+        input_example = torch.rand(1, input_size[0], input_size[1]) 
         # Log the final model
-        mlflow.pytorch.log_model(model, "model")
+        mlflow.pytorch.log_model(
+            model,
+            artifact_path="model",
+            input_example= input_example ,
+            )
         logger.info("Model logged to MLflow.")
-    return model
+        return model
 
 
 def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
@@ -185,19 +235,15 @@ def preprocess_raw_data(data: list, pad_params: dict, mfcc_parameters: dict):
     """
 
     # pad data to fix length
-    data_set_fix_length = pad_sample(data, pad_params)
-    # extract MFCC for each sample
-    mfcc_features = mfcc_extraction(
-        data_set_fix_length,
-        mfcc_parameters["fs"],
-        mfcc_parameters["n_fft"],
-        mfcc_parameters["frame_size"],
-        mfcc_parameters["frame_step"],
-        mfcc_parameters["n_mels"],
-        mfcc_parameters["n_mfcc"],
-    )
-
-    return mfcc_features
+    padded_audio = librosa.util.fix_length(
+            data, size=pad_params["fix_length"], axis=0, mode=pad_params["mode"]
+        )
+    padded_audio = padded_audio.astype(np.float32)
+    mel_spectrogram = librosa.feature.melspectrogram(y=padded_audio, sr=mfcc_parameters["fs"], n_mels=mfcc_parameters["n_mels"])
+    log_mel_spectrogram = librosa.power_to_db(mel_spectrogram, ref=np.max)
+    scaler = StandardScaler()
+    scaled_features = scaler.fit_transform(log_mel_spectrogram)
+    return scaled_features
 
 
 def pad_sample(sample: tuple, pad_params: dict):

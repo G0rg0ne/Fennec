@@ -23,7 +23,7 @@ docker build -t fennec .
 
 Run the container and install dependencies
 ```bash
-docker build -t fennec .
+docker run -it --rm --gpus all -v $(pwd):/app fennec /bin/bash
 ```
 Training pipeline
 ```bash
