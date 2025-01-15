@@ -13,7 +13,7 @@ from .utils import (
 import numpy as np
 import librosa
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Dict, List, Tuple
 import torch
 from .dataloader import AudioFeatureDataset
 from torch.utils.data import DataLoader
@@ -30,6 +30,31 @@ from sklearn.preprocessing import StandardScaler
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.nn.utils import clip_grad_norm_
 
+def extract_features(
+        train_audio,
+        eval_audio,
+        pre_processing_parameters,
+        ):
+    train_dict = {}
+    eval_dict = {}
+    train_dataset = AudioFeatureDataset(
+        train_audio,
+        preprocess_raw_data,
+        train=True,
+        pre_processing_parameters=pre_processing_parameters,
+    )
+    eval_dataset = AudioFeatureDataset(
+        eval_audio,
+        preprocess_raw_data,
+        train=False,
+        pre_processing_parameters=pre_processing_parameters, 
+    )
+
+    for train_data in train_dataset:
+        train_dict[train_data[0]] = train_data[1]   
+    for eval_data in eval_dataset:
+        eval_dict[eval_data[0]] = eval_data[1] 
+    return train_data, eval_dict
 
 def training_pipeline(
     train_audio,
