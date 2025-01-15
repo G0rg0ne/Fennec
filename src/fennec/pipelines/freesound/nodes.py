@@ -76,37 +76,22 @@ def training_pipeline(
     train_gt_fname_to_labels = dict(zip(train_gt["fname"], train_gt["labels"]))
     eval_gt_fname_to_labels = dict(zip(eval_gt["fname"], eval_gt["labels"]))
 
-    train_dataset = AudioFeatureDataset(
-        train_audio,
-        train_gt_fname_to_labels,
-        preprocess_raw_data,
-        train=True,
-        pre_processing_parameters=pre_processing_parameters,
-        label_encoder=class_label_encod,
-    )
-    eval_dataset = AudioFeatureDataset(
-        eval_audio,
-        eval_gt_fname_to_labels,
-        preprocess_raw_data,
-        train=False,
-        pre_processing_parameters=pre_processing_parameters,
-        label_encoder=class_label_encod, 
-    )
     train_loader = DataLoader(
-        train_dataset,
+        train_audio,
         batch_size=training_parameters["batch_size"],
         shuffle=True,
         num_workers=training_parameters["num_workers"],
         pin_memory=True,
     )
     eval_loader = DataLoader(
-        eval_dataset,
+        eval_audio,
         batch_size=training_parameters["batch_size"],
         shuffle=False,
         num_workers=training_parameters["num_workers"],
         pin_memory=True,
     )
-    input_size = tuple(train_dataset[0][0].shape) #tuple(training_parameters["input_size"])
+    import pdb;pdb.set_trace()
+    input_size = tuple(train_loader[0][0].shape) #tuple(training_parameters["input_size"])
     num_classes = training_parameters["num_classes"]  # Number of target classes
     learning_rate = training_parameters[
         "learning_rate"
